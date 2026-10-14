@@ -1,0 +1,22 @@
+[Unit]
+Description=Interview Asker Flask Service
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/root/interview_asker
+EnvironmentFile=/root/interview_asker/.env
+Environment=FLASK_ENV=production
+
+ExecStart=/usr/local/bin/gunicorn \
+    -w 2 --timeout 120 \
+    --access-logfile /var/log/interview_asker/access.log \
+    --error-logfile /var/log/interview_asker/error.log \
+    -b 127.0.0.1:8005 wsgi:app
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}interview_asker{% endblock %}
+
+{% block extra_css %}
+    .navbar { background-color: #2d2d2d !important; border-bottom: 1px solid #3a3a3a; }
+    .navbar-brand, .navbar-text { color: #e0e0e0 !important; }
+
+    body { min-height: 100vh; }
+
+    .question-card {
+        min-height: 240px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 2rem;
+        transition: opacity .15s ease-in-out;
+    }
+    .question-text {
+        font-size: 1.4rem;
+        line-height: 1.45;
+        color: #f1f1f1;
+    }
+    .question-card.loading { opacity: .35; }
+
+    .counter { color: #888888; font-size: .9rem; }
+
+    @media (max-width: 576px) {
+        .question-text { font-size: 1.1rem; }
+        .btn { font-size: .85rem; }
+    }
+{% endblock %}
+
+{% block body %}
+<nav class="navbar navbar-expand-lg">
+    <div class="container-fluid">
+        <span class="navbar-brand">interview_asker</span>
+        <div class="d-flex align-items-center">
+            <span class="navbar-text me-3 counter">Всего вопросов: {{ total }}</span>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-9">
+            <div id="questionCard" class="card question-card">
+                <div id="questionText" class="question-text">Загрузка вопроса…</div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 justify-content-center mt-4">
+                <button id="nextBtn" class="btn btn-primary">
+                    🎲 Другой вопрос
+                </button>
+                <button id="answerBtn" class="btn btn-success" disabled>
+                    👁 Посмотреть ответ
+                </button>
+            </div>
+
+            <div class="text-muted small text-center mt-3">
+                <i>Ответ откроется в новой вкладке на GitHub.</i>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const card = document.getElementById('questionCard');
+        const textEl = document.getElementById('questionText');
+        const nextBtn = document.getElementById('nextBtn');
+        const answerBtn = document.getElementById('answerBtn');
+
+        let answerUrl = null;
+
+        function setLoading(state) {
+            card.classList.toggle('loading', state);
+            nextBtn.disabled = state;
+        }
+
+        async function loadQuestion() {
+            setLoading(true);
+            answerBtn.disabled = true;
+            try {
+                const res = await fetch('/api/random', { cache: 'no-store' });
+                const data = await res.json();
+                if (!data.success) {
+                    textEl.textContent = 'Не удалось получить вопрос: ' + (data.message || '');
+                    return;
+                }
+                textEl.textContent = data.question;
+                answerUrl = data.answer_url;
+                answerBtn.disabled = false;
+            } catch (err) {
+                console.error(err);
+                textEl.textContent = 'Ошибка сети. Попробуйте ещё раз.';
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        nextBtn.addEventListener('click', loadQuestion);
+
+        answerBtn.addEventListener('click', function () {
+            if (answerUrl) {
+                window.open(answerUrl, '_blank', 'noopener,noreferrer');
+            }
+        });
+
+        // Горячая клавиша: пробел — следующий вопрос
+        document.addEventListener('keydown', function (e) {
+            if (e.code === 'Space' && document.activeElement === document.body) {
+                e.preventDefault();
+                if (!nextBtn.disabled) loadQuestion();
+            }
+        });
+
+        loadQuestion();
+    });
+</script>
+{% endblock %}
