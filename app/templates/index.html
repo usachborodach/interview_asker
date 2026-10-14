@@ -9,25 +9,39 @@
     body { min-height: 100vh; }
 
     .question-card {
-        min-height: 240px;
+        min-height: 260px;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
         text-align: center;
-        padding: 2rem;
+        padding: 2rem 2.5rem;
         transition: opacity .15s ease-in-out;
     }
+    .question-card.loading { opacity: .35; }
+
+    .breadcrumbs {
+        font-size: .85rem;
+        color: #9a9a9a;
+        margin-bottom: .9rem;
+        line-height: 1.4;
+    }
+    .breadcrumbs .sep {
+        color: #5c5c5c;
+        margin: 0 .4rem;
+    }
+
     .question-text {
         font-size: 1.4rem;
         line-height: 1.45;
         color: #f1f1f1;
     }
-    .question-card.loading { opacity: .35; }
 
     .counter { color: #888888; font-size: .9rem; }
 
     @media (max-width: 576px) {
         .question-text { font-size: 1.1rem; }
+        .breadcrumbs  { font-size: .75rem; }
         .btn { font-size: .85rem; }
     }
 {% endblock %}
@@ -46,6 +60,7 @@
     <div class="row justify-content-center">
         <div class="col-12 col-lg-9">
             <div id="questionCard" class="card question-card">
+                <div id="breadcrumbs" class="breadcrumbs d-none"></div>
                 <div id="questionText" class="question-text">Загрузка вопроса…</div>
             </div>
 
@@ -71,6 +86,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         const card = document.getElementById('questionCard');
         const textEl = document.getElementById('questionText');
+        const crumbsEl = document.getElementById('breadcrumbs');
         const nextBtn = document.getElementById('nextBtn');
         const answerBtn = document.getElementById('answerBtn');
 
@@ -81,6 +97,27 @@
             nextBtn.disabled = state;
         }
 
+        function renderBreadcrumbs(items) {
+            if (!items || items.length === 0) {
+                crumbsEl.classList.add('d-none');
+                crumbsEl.textContent = '';
+                return;
+            }
+            crumbsEl.textContent = '';
+            items.forEach((part, i) => {
+                if (i > 0) {
+                    const sep = document.createElement('span');
+                    sep.className = 'sep';
+                    sep.textContent = '›';
+                    crumbsEl.appendChild(sep);
+                }
+                const span = document.createElement('span');
+                span.textContent = part;
+                crumbsEl.appendChild(span);
+            });
+            crumbsEl.classList.remove('d-none');
+        }
+
         async function loadQuestion() {
             setLoading(true);
             answerBtn.disabled = true;
@@ -89,14 +126,17 @@
                 const data = await res.json();
                 if (!data.success) {
                     textEl.textContent = 'Не удалось получить вопрос: ' + (data.message || '');
+                    renderBreadcrumbs([]);
                     return;
                 }
+                renderBreadcrumbs(data.breadcrumbs);
                 textEl.textContent = data.question;
                 answerUrl = data.answer_url;
                 answerBtn.disabled = false;
             } catch (err) {
                 console.error(err);
                 textEl.textContent = 'Ошибка сети. Попробуйте ещё раз.';
+                renderBreadcrumbs([]);
             } finally {
                 setLoading(false);
             }

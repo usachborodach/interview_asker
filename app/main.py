@@ -29,5 +29,6 @@ def random_question():
     return jsonify({
         'success': True,
         'question': item['question'],
+        'breadcrumbs': item['breadcrumbs'],
         'answer_url': build_answer_url(item['anchor']),
     })

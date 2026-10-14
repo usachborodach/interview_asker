@@ -12,9 +12,11 @@ def main() -> None:
     path = os.getenv('LIST_MD_PATH', 'list.md')
     questions = parse_list(path)
     print(f"Файл: {path}")
-    print(f"Найдено вопросов: {len(questions)}")
-    for i, q in enumerate(questions[:5], 1):
-        print(f"  {i}. {q['question'][:80]}  ->  {q['anchor']}")
+    print(f"Найдено вопросов (листьев): {len(questions)}")
+    for i, q in enumerate(questions[:10], 1):
+        crumbs = " › ".join(q['breadcrumbs'])
+        prefix = f"[{crumbs}] " if crumbs else ""
+        print(f"  {i}. {prefix}{q['question'][:80]}")
 
 
 if __name__ == '__main__':
