@@ -19,17 +19,7 @@
         transition: opacity .15s ease-in-out;
     }
     .question-card.loading { opacity: .35; }
-
-    .breadcrumbs {
-        font-size: .85rem;
-        color: #9a9a9a;
-        margin-bottom: .9rem;
-        line-height: 1.4;
-    }
-    .breadcrumbs .sep {
-        color: #5c5c5c;
-        margin: 0 .4rem;
-    }
+    .question-card.has-answer { justify-content: flex-start; }
 
     .question-text {
         font-size: 1.4rem;
@@ -37,12 +27,42 @@
         color: #f1f1f1;
     }
 
+    .answer-block {
+        width: 100%;
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #4a4a4a;
+        text-align: left;
+    }
+    .answer-text {
+        font-size: .95rem;
+        line-height: 1.6;
+        color: #d0d0d0;
+        max-height: 55vh;
+        overflow-y: auto;
+    }
+    .answer-text pre {
+        background-color: #1a1a1a;
+        padding: .75rem 1rem;
+        border-radius: 6px;
+        color: #e0e0e0;
+        overflow-x: auto;
+    }
+    .answer-text code {
+        background-color: #1a1a1a;
+        padding: .1rem .35rem;
+        border-radius: 4px;
+        color: #e0e0e0;
+    }
+    .answer-text pre code { background: none; padding: 0; }
+    .answer-text ul { padding-left: 1.25rem; }
+
     .counter { color: #888888; font-size: .9rem; }
 
     @media (max-width: 576px) {
         .question-text { font-size: 1.1rem; }
-        .breadcrumbs  { font-size: .75rem; }
         .btn { font-size: .85rem; }
+        .answer-text { font-size: .9rem; }
     }
 {% endblock %}
 
@@ -60,8 +80,10 @@
     <div class="row justify-content-center">
         <div class="col-12 col-lg-9">
             <div id="questionCard" class="card question-card">
-                <div id="breadcrumbs" class="breadcrumbs d-none"></div>
                 <div id="questionText" class="question-text">Загрузка вопроса…</div>
+                <div id="answerBlock" class="answer-block d-none">
+                    <div id="answerText" class="answer-text"></div>
+                </div>
             </div>
 
             <div class="d-flex flex-wrap gap-2 justify-content-center mt-4">
@@ -69,12 +91,8 @@
                     🎲 Другой вопрос
                 </button>
                 <button id="answerBtn" class="btn btn-success" disabled>
-                    👁 Посмотреть ответ
+                    👁 Показать ответ
                 </button>
-            </div>
-
-            <div class="text-muted small text-center mt-3">
-                <i>Ответ откроется в новой вкладке на GitHub.</i>
             </div>
         </div>
     </div>
@@ -82,61 +100,58 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const card = document.getElementById('questionCard');
-        const textEl = document.getElementById('questionText');
-        const crumbsEl = document.getElementById('breadcrumbs');
-        const nextBtn = document.getElementById('nextBtn');
-        const answerBtn = document.getElementById('answerBtn');
+        const card        = document.getElementById('questionCard');
+        const textEl      = document.getElementById('questionText');
+        const answerBlock = document.getElementById('answerBlock');
+        const answerText  = document.getElementById('answerText');
+        const nextBtn     = document.getElementById('nextBtn');
+        const answerBtn   = document.getElementById('answerBtn');
 
-        let answerUrl = null;
+        let currentAnswer = null;
 
         function setLoading(state) {
             card.classList.toggle('loading', state);
             nextBtn.disabled = state;
         }
 
-        function renderBreadcrumbs(items) {
-            if (!items || items.length === 0) {
-                crumbsEl.classList.add('d-none');
-                crumbsEl.textContent = '';
-                return;
-            }
-            crumbsEl.textContent = '';
-            items.forEach((part, i) => {
-                if (i > 0) {
-                    const sep = document.createElement('span');
-                    sep.className = 'sep';
-                    sep.textContent = '›';
-                    crumbsEl.appendChild(sep);
+        function renderAnswer(visible) {
+            if (visible && currentAnswer) {
+                if (typeof marked !== 'undefined') {
+                    answerText.innerHTML = marked.parse(currentAnswer);
+                } else {
+                    answerText.textContent = currentAnswer;
                 }
-                const span = document.createElement('span');
-                span.textContent = part;
-                crumbsEl.appendChild(span);
-            });
-            crumbsEl.classList.remove('d-none');
+                answerBlock.classList.remove('d-none');
+                card.classList.add('has-answer');
+                answerBtn.textContent = '🙈 Скрыть ответ';
+            } else {
+                answerBlock.classList.add('d-none');
+                card.classList.remove('has-answer');
+                answerBtn.textContent = '👁 Показать ответ';
+            }
         }
 
         async function loadQuestion() {
             setLoading(true);
+            renderAnswer(false);
+            currentAnswer = null;
             answerBtn.disabled = true;
             try {
-                const res = await fetch('/api/random', { cache: 'no-store' });
+                const res  = await fetch('/api/random', { cache: 'no-store' });
                 const data = await res.json();
                 if (!data.success) {
                     textEl.textContent = 'Не удалось получить вопрос: ' + (data.message || '');
-                    renderBreadcrumbs([]);
                     return;
                 }
-                renderBreadcrumbs(data.breadcrumbs);
                 textEl.textContent = data.question;
-                answerUrl = data.answer_url;
+                currentAnswer = data.answer;
                 answerBtn.disabled = false;
             } catch (err) {
                 console.error(err);
                 textEl.textContent = 'Ошибка сети. Попробуйте ещё раз.';
-                renderBreadcrumbs([]);
             } finally {
                 setLoading(false);
             }
@@ -145,16 +160,19 @@
         nextBtn.addEventListener('click', loadQuestion);
 
         answerBtn.addEventListener('click', function () {
-            if (answerUrl) {
-                window.open(answerUrl, '_blank', 'noopener,noreferrer');
-            }
+            if (!currentAnswer) return;
+            renderAnswer(answerBlock.classList.contains('d-none'));
         });
 
-        // Горячая клавиша: пробел — следующий вопрос
+        // Горячие клавиши: пробел — следующий, Enter — показать/скрыть ответ
         document.addEventListener('keydown', function (e) {
-            if (e.code === 'Space' && document.activeElement === document.body) {
+            if (document.activeElement !== document.body) return;
+            if (e.code === 'Space') {
                 e.preventDefault();
                 if (!nextBtn.disabled) loadQuestion();
+            } else if (e.code === 'Enter') {
+                e.preventDefault();
+                if (!answerBtn.disabled) answerBtn.click();
             }
         });
 

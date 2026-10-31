@@ -1,10 +1,10 @@
 import logging
-import random
 
-from flask import Blueprint, render_template, jsonify, current_app
+from flask import Blueprint, render_template, jsonify
+from pymongo.errors import PyMongoError
 
 from .extensions import limiter
-from .questions import get_all_questions, build_answer_url
+from .questions import count_questions, get_random_question
 
 logger = logging.getLogger(__name__)
 main_bp = Blueprint('main', __name__)
@@ -12,23 +12,33 @@ main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 def index():
-    total = len(get_all_questions())
+    try:
+        total = count_questions()
+    except PyMongoError:
+        logger.exception("MongoDB error on index")
+        total = 0
     return render_template('index.html', total=total)
 
 
 @main_bp.route('/api/random')
 @limiter.limit("60 per minute")
 def random_question():
-    questions = get_all_questions()
-    if not questions:
-        logger.warning("Список вопросов пуст (%s)",
-                       current_app.config['LIST_MD_PATH'])
+    try:
+        item = get_random_question()
+    except PyMongoError:
+        logger.exception("MongoDB error on /api/random")
+        return jsonify({
+            'success': False,
+            'message': 'База данных недоступна',
+        }), 503
+
+    if item is None:
+        logger.warning("Вопросы в MongoDB отсутствуют")
         return jsonify({'success': False, 'message': 'Список вопросов пуст'}), 404
 
-    item = random.choice(questions)
     return jsonify({
         'success': True,
+        'id': item['id'],
         'question': item['question'],
-        'breadcrumbs': item['breadcrumbs'],
-        'answer_url': build_answer_url(item['anchor']),
+        'answer': item['answer'],
     })
