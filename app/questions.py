@@ -36,3 +36,15 @@ def get_random_question() -> dict | None:
         'question': doc['question'],
         'answer': doc['answer'],
     }
+
+def get_all_questions() -> list[dict]:
+    """Возвращает все пары вопрос/ответ без служебных полей (_id)."""
+    collection = get_collection()
+    cursor = collection.find(
+        {},
+        {'_id': 0, 'question': 1, 'answer': 1},   # явная проекция
+    ).sort('_id', 1)                              # сохраняем порядок из qanda.md
+    return [
+        {'question': doc['question'], 'answer': doc['answer']}
+        for doc in cursor
+    ]

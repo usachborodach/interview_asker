@@ -117,3 +117,28 @@ flask --app wsgi show-random       # показать случайный воп�
 ```bash
 pytest -q
 ```
+
+## HTTP API
+
+| Метод | Путь | Что отдаёт |
+|---|---|---|
+| `GET` | `/` | HTML-страница с кнопками |
+| `GET` | `/api/random` | один случайный вопрос: `{success, id, question, answer}` |
+| `GET` | `/qanda` | все пары без `_id`: `[{question, answer}, ...]` |
+
+Пример:
+
+```bash
+curl -s https://interviewasker.usachborodach.ru/qanda | jq 'length'
+# 340
+
+curl -s https://interviewasker.usachborodach.ru/api/random | jq
+# {
+#   "success": true,
+#   "id": "6543a…",
+#   "question": "Что такое inode?",
+#   "answer": "- Inode — структура метаданных файла…"
+# }
+```
+
+`/qanda` отдаёт массив в порядке `qanda.md` (сортировка по `_id`) — формат совпадает с `qanda.json`, который `update_qanda.py` кладёт в Android-проект.

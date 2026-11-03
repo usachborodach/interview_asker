@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, jsonify
 from pymongo.errors import PyMongoError
 
 from .extensions import limiter
-from .questions import count_questions, get_random_question
+from .questions import count_questions, get_random_question, get_all_questions
 
 logger = logging.getLogger(__name__)
 main_bp = Blueprint('main', __name__)
@@ -42,3 +42,17 @@ def random_question():
         'question': item['question'],
         'answer': item['answer'],
     })
+
+@main_bp.route('/qanda')
+@limiter.limit("30 per minute")
+def all_qanda():
+    try:
+        items = get_all_questions()
+    except PyMongoError:
+        logger.exception("MongoDB error on /qanda")
+        return jsonify({
+            'success': False,
+            'message': 'База данных недоступна',
+        }), 503
+
+    return jsonify(items)

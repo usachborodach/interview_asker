@@ -66,3 +66,27 @@ def test_count_questions(collection):
 
     with patch('app.questions.get_collection', return_value=collection):
         assert count_questions() == 3
+
+
+def test_qanda_returns_all_without_id(client):
+    resp = client.get('/qanda')
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert isinstance(data, list)
+    assert len(data) == 3
+    for item in data:
+        assert set(item.keys()) == {'question', 'answer'}
+        assert item['question']
+        assert item['answer']
+
+
+def test_qanda_returns_empty_list_when_empty():
+    from app import create_app
+
+    empty = mongomock.MongoClient()['interview_asker']['qanda']
+    app = create_app()
+    with patch('app.questions.get_collection', return_value=empty):
+        with app.test_client() as c:
+            resp = c.get('/qanda')
+            assert resp.status_code == 200
+            assert resp.get_json() == []
