@@ -15,6 +15,10 @@ def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__)
     app.config.from_object(get_config(config_name))
 
+    # JSON с настоящей кириллицей, а не \uXXXX.
+    # Для русского текста это ~3x меньше байт и читаемый curl.
+    app.json.ensure_ascii = False
+
     # ProxyFix для корректного remote_addr за nginx
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
