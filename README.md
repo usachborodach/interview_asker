@@ -125,6 +125,8 @@ pytest -q
 | `GET` | `/` | HTML-страница с кнопками |
 | `GET` | `/api/random` | один случайный вопрос: `{success, id, question, answer}` |
 | `GET` | `/qanda` | все пары без `_id`: `[{question, answer}, ...]` |
+| `GET` | `/Drewz1312-ml` | HTML-страница ML/RAG-справочника |
+| `GET` | `/api/ml/random` | случайный вопрос из ML/RAG-файла: `{success, id, category, question, answer}` |
 
 Пример:
 
@@ -142,3 +144,32 @@ curl -s https://interviewasker.usachborodach.ru/api/random | jq
 ```
 
 `/qanda` отдаёт массив в порядке `qanda.md` (сортировка по `_id`) — формат совпадает с `qanda.json`, который `update_qanda.py` кладёт в Android-проект.
+
+
+## ML/RAG справочник (`/Drewz1312-ml`)
+
+Отдельная страница со случайными вопросами из markdown-файла
+`ultimate_ml_rag_300_interview_handbook.md`. Источник — файл на хосте,
+путь задаётся через `ML_HANDBOOK_PATH` (по умолчанию
+`/root/ML-AI-Engineer-Interview-Handbook/ultimate_ml_rag_300_interview_handbook.md`).
+
+Файл **не хранится в репозитории** — его нужно положить на сервер отдельно.
+В отличие от `/qanda`, эти вопросы в JSON-выгрузку `/qanda` **не попадают**.
+
+Формат файла, который парсится:
+
+```
+### [Категория] N. Текст вопроса
+Текст ответа…
+```
+
+Всё до первого такого заголовка (интро, `# …`) игнорируется. Хвостовые `---`
+между секциями от ответов отрезаются.
+
+Файл кешируется в памяти процесса: перечитывается только при изменении
+`mtime`. Проверка:
+
+```bash
+flask --app wsgi count-ml-questions
+flask --app wsgi show-ml-random
+```

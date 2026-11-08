@@ -13,6 +13,12 @@ class Config:
     MONGO_DB = os.getenv('MONGO_DB', 'interview_asker')
     MONGO_COLLECTION = os.getenv('MONGO_COLLECTION', 'qanda')
 
+    # ML/RAG handbook (markdown)
+    ML_HANDBOOK_PATH = os.getenv(
+        'ML_HANDBOOK_PATH',
+        '/root/ML-AI-Engineer-Interview-Handbook/ultimate_ml_rag_300_interview_handbook.md',
+    )
+
     RATELIMIT_DEFAULT = "120 per minute"
     RATELIMIT_STORAGE_URI = "memory://"
 
