@@ -1,19 +1,48 @@
 # interview_asker
 
 Сервис-«спрашиватель» вопросов для подготовки к собеседованиям.
-Берёт случайный вопрос из MongoDB и показывает ответ прямо в интерфейсе.
+Берёт случайный вопрос из локальных markdown-файлов и показывает ответ прямо в интерфейсе.
 
 ## Как это работает
 
-- Вопросы и ответы хранятся в MongoDB: `interview_asker.qanda`, документы вида `{question, answer}`.
-- Наполняется коллекция скриптом `update_qanda.py` (вне этого репозитория) — он парсит `qanda.md` и делает `insert_many`.
-- Flask-приложение читает документы из Mongo и по запросу `/api/random` отдаёт случайный.
+- Вопросы и ответы лежат в директории `QANDA_DIR` (по умолчанию `/root/qanda/qanda`),
+  по одному файлу на раздел: `main.md`, `base.md`, `docker.md`, …
+- `main.md` — основной набор. Он питает `/`, `/api/random`, `/qanda`.
+- Любой другой `<name>.md` автоматически доступен как раздел:
+  - HTML-страница: `/<name>` (например, `/base`)
+  - случайный вопрос: `/api/<name>/random`
+  - JSON-выгрузка: `/qanda/<name>`
+- Файлы кешируются в памяти процесса: перечитываются только при изменении
+  `mtime` или размера. БД не используется.
 - UI рендерит ответ инлайн (markdown → HTML через `marked.js` на клиенте).
+
+Дополнительно есть отдельная страница `/Drewz1312-ml` — справочник по ML/RAG
+из файла `ML_HANDBOOK_PATH`. В `/qanda` и `/qanda/<section>` его вопросы
+**не попадают** — это независимый источник.
+
+## Формат файла
+
+Один файл — набор блоков, разделённых `\n\n---\n\n`:
+
+```
+# kubernetes. Что такое pod?
+- под это объект, описывающий запуск контейнеров на ноде
+- минимальная единица планирования
+
+---
+
+# kubernetes. Что такое Deployment?
+- контроллер над ReplicaSet'ами
+- умеет rolling update, rollback
+```
+
+- Вопрос — первая строка блока, начинающаяся с `#` (решётка и пробелы обрезаются).
+- Ответ — всё остальное в блоке, в markdown.
+- Блоки без `#` в первой строке игнорируются.
 
 ## Требования
 
 - Python 3.10+
-- MongoDB (локально или доступный по сети)
 
 ## Установка
 
@@ -37,41 +66,26 @@ cp .env.example .env
 python3 -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-Переменные:
-
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
 | `SECRET_KEY` | `dev-key-change-in-production` | секрет Flask |
-| `MONGO_URI` | `mongodb://localhost:27017` | строка подключения к Mongo |
-| `MONGO_DB` | `interview_asker` | имя базы |
-| `MONGO_COLLECTION` | `qanda` | коллекция с вопросами |
+| `QANDA_DIR` | `/root/qanda/qanda` | директория с `*.md` (main + разделы) |
+| `ML_HANDBOOK_PATH` | `/root/ML-AI-Engineer-Interview-Handbook/ultimate_ml_rag_300_interview_handbook.md` | справочник для `/Drewz1312-ml` |
 
-Если Mongo доступна не напрямую (например, на удалённом хосте через SSH-туннель), можно:
+## Наполнение
 
-- поднять туннель и оставить `mongodb://localhost:27017`;
-- либо прописать прямой `mongodb://user:pass@host:27017/?authSource=admin`.
+Просто положите `.md`-файлы в `QANDA_DIR`. Основной — `main.md`.
+Добавили `docker.md` — раздел сразу доступен по `/docker`, перезапуск не нужен:
+первый запрос после правки перечитает файл по изменившемуся `mtime`.
 
-## Наполнение базы
-
-Вопросы заливаются `update_qanda.py` (лежит рядом с проектом):
+Проверить из CLI:
 
 ```bash
-python update_qanda.py
-```
-
-Скрипт:
-
-- читает `qanda.md`, разбивает по `\n\n---\n\n`;
-- обновляет JSON-ассет в Android-проекте (`interview_asker_android/.../qanda.json`);
-- открывает SSH-туннель, подключается к Mongo, делает `delete_many({})` + `insert_many(...)`.
-
-То есть коллекция **полностью перезаписывается** — это нормально, вопросы статические.
-
-Проверить, что вопросы на месте:
-
-```bash
-flask --app wsgi count-questions
-flask --app wsgi show-random
+flask --app wsgi list-sections           # перечислить все .md + число вопросов
+flask --app wsgi count-questions         # main.md
+flask --app wsgi count-questions base    # base.md
+flask --app wsgi show-random             # случайный из main.md
+flask --app wsgi show-random base        # случайный из base.md
 ```
 
 ## Локальный запуск
@@ -101,32 +115,24 @@ ln -sf /root/interview_asker/deploy/interview_asker.logrotate \
        /etc/logrotate.d/interview_asker
 ```
 
-`interview_asker.service` читает `.env` через `EnvironmentFile=/root/interview_asker/.env` — `MONGO_URI` достаточно положить туда же.
+`interview_asker.service` читает `.env` через `EnvironmentFile=/root/interview_asker/.env` —
+`QANDA_DIR` и `ML_HANDBOOK_PATH` достаточно положить туда же.
 
-## CLI-команды
-
-```bash
-flask --app wsgi count-questions   # сколько вопросов в Mongo
-flask --app wsgi show-random       # показать случайный вопрос и ответ
-```
-
-## Запуск тестов
-
-Тесты используют `mongomock` — реальная Mongo не нужна.
-
-```bash
-pytest -q
-```
+Gunicorn запускает 2 воркера. У каждого свой кеш в памяти; при изменении
+файла оба увидят новый `mtime` на первом же запросе после правки. Рестарт не нужен.
 
 ## HTTP API
 
 | Метод | Путь | Что отдаёт |
 |---|---|---|
-| `GET` | `/` | HTML-страница с кнопками |
-| `GET` | `/api/random` | один случайный вопрос: `{success, id, question, answer}` |
-| `GET` | `/qanda` | все пары без `_id`: `[{question, answer}, ...]` |
+| `GET` | `/` | HTML, вопросы из `main.md` |
+| `GET` | `/api/random` | случайный из `main.md`: `{success, question, answer}` |
+| `GET` | `/qanda` | все из `main.md`: `[{question, answer}, …]` |
+| `GET` | `/<section>` | HTML-страница раздела (`<section>.md` должен существовать) |
+| `GET` | `/api/<section>/random` | случайный вопрос из раздела |
+| `GET` | `/qanda/<section>` | JSON раздела |
 | `GET` | `/Drewz1312-ml` | HTML-страница ML/RAG-справочника |
-| `GET` | `/api/ml/random` | случайный вопрос из ML/RAG-файла: `{success, id, category, question, answer}` |
+| `GET` | `/api/ml/random` | случайный из ML/RAG-справочника: `{success, id, category, question, answer}` |
 
 Пример:
 
@@ -134,42 +140,32 @@ pytest -q
 curl -s https://interviewasker.usachborodach.ru/qanda | jq 'length'
 # 340
 
-curl -s https://interviewasker.usachborodach.ru/api/random | jq
-# {
-#   "success": true,
-#   "id": "6543a…",
-#   "question": "Что такое inode?",
-#   "answer": "- Inode — структура метаданных файла…"
-# }
+curl -s https://interviewasker.usachborodach.ru/qanda/base | jq '.[0]'
+# {"question": "kubernetes. Что такое Deployment?", "answer": "- контроллер..."}
+
+curl -s https://interviewasker.usachborodach.ru/api/base/random | jq
+# {"success": true, "question": "...", "answer": "..."}
+
+curl -s https://interviewasker.usachborodach.ru/api/ml/random | jq
+# {"success": true, "id": 42, "category": "RAG",
+#  "question": "Как работает техника HyDE...", "answer": "1. ..."}
 ```
 
-`/qanda` отдаёт массив в порядке `qanda.md` (сортировка по `_id`) — формат совпадает с `qanda.json`, который `update_qanda.py` кладёт в Android-проект.
+Порядок в `/qanda` и `/qanda/<section>` — как в файле. Формат `[{question, answer}, …]`
+совпадает с тем, что раньше хранилось в Mongo — потребителям ничего менять не нужно.
 
+## Роутинг: важное
 
-## ML/RAG справочник (`/Drewz1312-ml`)
+- `/<section>` — единственный динамический шаблон. Он не перекрывает `/qanda`,
+  `/Drewz1312-ml` и `/api/...` — Werkzeug отдаёт приоритет статическим сегментам.
+- Имя раздела валидируется регуляркой `[A-Za-z0-9_-]+`, так что `../etc/passwd`
+  и подобное отбивается с `404` ещё до любого обращения к файловой системе.
+- Если `<section>.md` не существует — `404`.
 
-Отдельная страница со случайными вопросами из markdown-файла
-`ultimate_ml_rag_300_interview_handbook.md`. Источник — файл на хосте,
-путь задаётся через `ML_HANDBOOK_PATH` (по умолчанию
-`/root/ML-AI-Engineer-Interview-Handbook/ultimate_ml_rag_300_interview_handbook.md`).
-
-Файл **не хранится в репозитории** — его нужно положить на сервер отдельно.
-В отличие от `/qanda`, эти вопросы в JSON-выгрузку `/qanda` **не попадают**.
-
-Формат файла, который парсится:
-
-```
-### [Категория] N. Текст вопроса
-Текст ответа…
-```
-
-Всё до первого такого заголовка (интро, `# …`) игнорируется. Хвостовые `---`
-между секциями от ответов отрезаются.
-
-Файл кешируется в памяти процесса: перечитывается только при изменении
-`mtime`. Проверка:
+## Запуск тестов
 
 ```bash
-flask --app wsgi count-ml-questions
-flask --app wsgi show-ml-random
+pytest -q
 ```
+
+Тесты используют `tmp_path`; реальная директория и какая-либо БД не нужны.

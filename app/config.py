@@ -8,15 +8,14 @@ load_dotenv()
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
 
-    # MongoDB
-    MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
-    MONGO_DB = os.getenv('MONGO_DB', 'interview_asker')
-    MONGO_COLLECTION = os.getenv('MONGO_COLLECTION', 'qanda')
+    # Директория с markdown-файлами: main.md, base.md, ...
+    QANDA_DIR = os.getenv('QANDA_DIR', '/root/qanda/qanda')
 
-    # ML/RAG handbook (markdown)
+    # ML/RAG handbook (отдельный файл вне QANDA_DIR)
     ML_HANDBOOK_PATH = os.getenv(
         'ML_HANDBOOK_PATH',
-        '/root/ML-AI-Engineer-Interview-Handbook/ultimate_ml_rag_300_interview_handbook.md',
+        '/root/ML-AI-Engineer-Interview-Handbook/'
+        'ultimate_ml_rag_300_interview_handbook.md',
     )
 
     RATELIMIT_DEFAULT = "120 per minute"

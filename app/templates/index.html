@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}interview_asker{% endblock %}
+{% block title %}{% if section %}{{ section }} — interview_asker{% else %}interview_asker{% endif %}{% endblock %}
 
 {% block extra_css %}
     .navbar { background-color: #2d2d2d !important; border-bottom: 1px solid #3a3a3a; }
     .navbar-brand, .navbar-text { color: #e0e0e0 !important; }
+    .navbar-brand a { color: inherit; text-decoration: none; }
+    .navbar-brand a:hover { color: #6ea8fe; }
 
     body { min-height: 100vh; }
 
@@ -69,7 +71,9 @@
 {% block body %}
 <nav class="navbar navbar-expand-lg">
     <div class="container-fluid">
-        <span class="navbar-brand">interview_asker</span>
+        <span class="navbar-brand">
+            <a href="/">interview_asker</a>{% if section %} / {{ section }}{% endif %}
+        </span>
         <div class="d-flex align-items-center">
             <span class="navbar-text me-3 counter">Всего вопросов: {{ total }}</span>
         </div>
@@ -100,9 +104,12 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const SECTION     = {{ section|tojson }};
+        const RANDOM_URL  = SECTION ? ('/api/' + encodeURIComponent(SECTION) + '/random')
+                                    : '/api/random';
         const card        = document.getElementById('questionCard');
         const textEl      = document.getElementById('questionText');
         const answerBlock = document.getElementById('answerBlock');
@@ -140,7 +147,7 @@
             currentAnswer = null;
             answerBtn.disabled = true;
             try {
-                const res  = await fetch('/api/random', { cache: 'no-store' });
+                const res  = await fetch(RANDOM_URL, { cache: 'no-store' });
                 const data = await res.json();
                 if (!data.success) {
                     textEl.textContent = 'Не удалось получить вопрос: ' + (data.message || '');
@@ -164,7 +171,6 @@
             renderAnswer(answerBlock.classList.contains('d-none'));
         });
 
-        // Горячие клавиши: пробел — следующий, Enter — показать/скрыть ответ
         document.addEventListener('keydown', function (e) {
             if (document.activeElement !== document.body) return;
             if (e.code === 'Space') {
