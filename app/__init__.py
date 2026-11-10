@@ -4,19 +4,11 @@ import time
 from flask import Flask, request
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
-from flask_bootstrap import Bootstrap5
 
 from .config import get_config
 from .extensions import init_extensions
 from .main import main_bp
 from .cli import register_cli
-
-
-
-
-
-
-Bootstrap5
 
 def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__)
