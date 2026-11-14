@@ -83,6 +83,15 @@ def _load() -> list[dict]:
     return items
 
 
+def get_ml_version() -> str:
+    """Версия файла справочника; меняется при любом обновлении источника."""
+    try:
+        st = Path(current_app.config['ML_HANDBOOK_PATH']).stat()
+    except OSError:
+        return ''
+    return f'{st.st_mtime_ns}:{st.st_size}'
+
+
 def count_ml_questions() -> int:
     return len(_load())
 

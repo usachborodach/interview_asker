@@ -100,6 +100,64 @@ def test_random_main_returns_question_and_answer(client):
         assert data['answer']
 
 
+# ---------- колода ----------
+
+def test_deck_no_repeats_until_wrapped(client):
+    # В main.md два вопроса: за первый круг должны выдать оба без повторов
+    seen = [client.get('/api/random').get_json()['question'] for _ in range(2)]
+    assert set(seen) == {'Что такое inode?', 'Что такое pod?'}
+    # третий — уже новый круг перемешанной колоды
+    third = client.get('/api/random').get_json()
+    assert third['position'] == 0
+
+
+def test_deck_back_returns_previous_question(client):
+    first = client.get('/api/random').get_json()
+    assert first['position'] == 0
+    second = client.get('/api/random').get_json()
+    assert second['position'] == 1
+    assert second['question'] != first['question']
+
+    back = client.get('/api/back').get_json()
+    assert back['question'] == first['question']
+    assert back['position'] == 0
+
+    # «назад» на первом вопросе остаётся на нём же
+    back2 = client.get('/api/back').get_json()
+    assert back2['question'] == first['question']
+    assert back2['position'] == 0
+
+
+def test_deck_rebuilt_when_file_changes(client, tmp_path):
+    first = client.get('/api/random').get_json()
+    assert first['position'] == 0
+    client.get('/api/random')  # углубляемся в колоду
+
+    # Обновляем файл-источник — колода пересобирается, прогресс сбрасывается
+    (tmp_path / 'main.md').write_text(
+        MAIN_MD + "\n---\n\n# Что такое TCP?\n- Transport Control Protocol.\n",
+        encoding='utf-8',
+    )
+    resp = client.get('/api/random').get_json()
+    assert resp['position'] == 0
+
+
+def test_deck_back_returns_answer_and_extras(client):
+    client.get('/api/random')
+    back = client.get('/api/back')
+    assert back.status_code == 200
+    data = back.get_json()
+    assert data['success'] is True
+    assert data['question']
+    assert data['answer']
+
+
+def test_missing_section_back_returns_404(client):
+    resp = client.get('/api/nonexistent/back')
+    assert resp.status_code == 404
+    assert resp.get_json()['success'] is False
+
+
 # ---------- qanda sections ----------
 
 def test_section_index_renders(client):
@@ -179,3 +237,15 @@ def test_ml_random_endpoint(client):
         assert data['category'] in ('RAG', 'Python', 'ML')
         categories.add(data['category'])
     assert len(categories) >= 2
+
+
+def test_ml_deck_back_returns_previous(client):
+    first = client.get('/api/ml/random').get_json()
+    assert first['position'] == 0
+    second = client.get('/api/ml/random').get_json()
+    assert second['question'] != first['question']
+
+    back = client.get('/api/ml/back').get_json()
+    assert back['question'] == first['question']
+    assert back['category'] == first['category']
+    assert back['position'] == 0

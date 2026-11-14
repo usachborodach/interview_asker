@@ -10,11 +10,24 @@
 - `main.md` — основной набор. Он питает `/`, `/api/random`, `/qanda`.
 - Любой другой `<name>.md` автоматически доступен как раздел:
   - HTML-страница: `/<name>` (например, `/base`)
-  - случайный вопрос: `/api/<name>/random`
+  - вопросы из колоды: `/api/<name>/random` и `/api/<name>/back`
   - JSON-выгрузка: `/qanda/<name>`
 - Файлы кешируются в памяти процесса: перечитываются только при изменении
   `mtime` или размера. БД не используется.
 - UI рендерит ответ инлайн (markdown → HTML через `marked.js` на клиенте).
+
+## Колода
+
+Весь список вопросов раздела — это «колода»: он перемешивается один раз и
+проходится по порядку, так что повторов внутри круга нет. Порядок и позиция
+хранятся в сессии браузера (подписанная cookie, серверный стор не нужен).
+
+- Кнопка **«⬅️ Назад»** (и `ArrowLeft`) возвращает к предыдущему вопросу —
+  случайно пролистанный не теряется. На первом вопросе колоды кнопка не показывается.
+- Прошли колоду до конца — она перемешивается заново (новый круг).
+- Обновили файл-источник (`mtime`/размер изменились) — колода пересобирается,
+  прогресс сбрасывается.
+- API: `random` отдаёт следующий вопрос и `position`, `back` — предыдущий.
 
 Дополнительно есть отдельная страница `/Drewz1312-ml` — справочник по ML/RAG
 из файла `ML_HANDBOOK_PATH`. В `/qanda` и `/qanda/<section>` его вопросы
@@ -126,13 +139,16 @@ Gunicorn запускает 2 воркера. У каждого свой кеш 
 | Метод | Путь | Что отдаёт |
 |---|---|---|
 | `GET` | `/` | HTML, вопросы из `main.md` |
-| `GET` | `/api/random` | случайный из `main.md`: `{success, question, answer}` |
+| `GET` | `/api/random` | следующий вопрос из колоды `main.md`: `{success, question, answer, position}` |
+| `GET` | `/api/back` | предыдущий вопрос колоды `main.md` (на первом — остаётся на нём) |
 | `GET` | `/qanda` | все из `main.md`: `[{question, answer}, …]` |
 | `GET` | `/<section>` | HTML-страница раздела (`<section>.md` должен существовать) |
-| `GET` | `/api/<section>/random` | случайный вопрос из раздела |
+| `GET` | `/api/<section>/random` | следующий вопрос из колоды раздела |
+| `GET` | `/api/<section>/back` | предыдущий вопрос из колоды раздела |
 | `GET` | `/qanda/<section>` | JSON раздела |
 | `GET` | `/Drewz1312-ml` | HTML-страница ML/RAG-справочника |
-| `GET` | `/api/ml/random` | случайный из ML/RAG-справочника: `{success, id, category, question, answer}` |
+| `GET` | `/api/ml/random` | следующий из колоды справочника: `{success, id, category, question, answer, position}` |
+| `GET` | `/api/ml/back` | предыдущий из колоды справочника |
 
 Пример:
 
@@ -144,7 +160,7 @@ curl -s https://interviewasker.usachborodach.ru/qanda/base | jq '.[0]'
 # {"question": "kubernetes. Что такое Deployment?", "answer": "- контроллер..."}
 
 curl -s https://interviewasker.usachborodach.ru/api/base/random | jq
-# {"success": true, "question": "...", "answer": "..."}
+# {"success": true, "question": "...", "answer": "...", "position": 3}
 
 curl -s https://interviewasker.usachborodach.ru/api/ml/random | jq
 # {"success": true, "id": 42, "category": "RAG",

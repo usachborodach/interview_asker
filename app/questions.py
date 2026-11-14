@@ -104,6 +104,16 @@ def get_main_items() -> list[dict]:
     return get_section_items('main')
 
 
+def get_section_version(section: str) -> str:
+    """Версия файла раздела; меняется при любом обновлении источника."""
+    path = _qanda_dir() / f'{section}.md'
+    try:
+        st = path.stat()
+    except OSError:
+        return ''
+    return f'{st.st_mtime_ns}:{st.st_size}'
+
+
 def count_main_questions() -> int:
     return len(get_main_items())
 

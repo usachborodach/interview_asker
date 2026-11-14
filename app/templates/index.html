@@ -91,6 +91,9 @@
             </div>
 
             <div class="d-flex flex-wrap gap-2 justify-content-center mt-4">
+                <button id="backBtn" class="btn btn-outline-secondary d-none">
+                    ⬅️ Назад
+                </button>
                 <button id="nextBtn" class="btn btn-primary">
                     🎲 Другой вопрос
                 </button>
@@ -110,18 +113,28 @@
         const SECTION     = {{ section|tojson }};
         const RANDOM_URL  = SECTION ? ('/api/' + encodeURIComponent(SECTION) + '/random')
                                     : '/api/random';
+        const BACK_URL    = SECTION ? ('/api/' + encodeURIComponent(SECTION) + '/back')
+                                    : '/api/back';
         const card        = document.getElementById('questionCard');
         const textEl      = document.getElementById('questionText');
         const answerBlock = document.getElementById('answerBlock');
         const answerText  = document.getElementById('answerText');
+        const backBtn     = document.getElementById('backBtn');
         const nextBtn     = document.getElementById('nextBtn');
         const answerBtn   = document.getElementById('answerBtn');
 
         let currentAnswer = null;
+        let position      = 0;   // текущая позиция в колоде
 
         function setLoading(state) {
             card.classList.toggle('loading', state);
             nextBtn.disabled = state;
+            backBtn.disabled = state;
+        }
+
+        // На первом вопросе колоды кнопки «назад» не видно
+        function updateBackBtn() {
+            backBtn.classList.toggle('d-none', position <= 0);
         }
 
         function renderAnswer(visible) {
@@ -141,18 +154,20 @@
             }
         }
 
-        async function loadQuestion() {
+        async function loadQuestion(url) {
             setLoading(true);
             renderAnswer(false);
             currentAnswer = null;
             answerBtn.disabled = true;
             try {
-                const res  = await fetch(RANDOM_URL, { cache: 'no-store' });
+                const res  = await fetch(url, { cache: 'no-store' });
                 const data = await res.json();
                 if (!data.success) {
                     textEl.textContent = 'Не удалось получить вопрос: ' + (data.message || '');
                     return;
                 }
+                if (typeof data.position === 'number') position = data.position;
+                updateBackBtn();
                 textEl.textContent = data.question;
                 currentAnswer = data.answer;
                 answerBtn.disabled = false;
@@ -164,7 +179,11 @@
             }
         }
 
-        nextBtn.addEventListener('click', loadQuestion);
+        const showNext = () => loadQuestion(RANDOM_URL);
+        const showBack = () => { if (position > 0) loadQuestion(BACK_URL); };
+
+        nextBtn.addEventListener('click', showNext);
+        backBtn.addEventListener('click', showBack);
 
         answerBtn.addEventListener('click', function () {
             if (!currentAnswer) return;
@@ -173,16 +192,19 @@
 
         document.addEventListener('keydown', function (e) {
             if (document.activeElement !== document.body) return;
-            if (e.code === 'Space') {
+            if (e.code === 'Space' || e.code === 'ArrowRight') {
                 e.preventDefault();
-                if (!nextBtn.disabled) loadQuestion();
+                if (!nextBtn.disabled) showNext();
+            } else if (e.code === 'ArrowLeft') {
+                e.preventDefault();
+                if (!backBtn.disabled) showBack();
             } else if (e.code === 'Enter') {
                 e.preventDefault();
                 if (!answerBtn.disabled) answerBtn.click();
             }
         });
 
-        loadQuestion();
+        loadQuestion(RANDOM_URL);
     });
 </script>
 {% endblock %}
